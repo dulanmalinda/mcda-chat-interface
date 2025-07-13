@@ -37,6 +37,7 @@ export const ActionTypes = {
   SET_MESSAGES: 'SET_MESSAGES',
   ADD_MESSAGE: 'ADD_MESSAGE',
   UPDATE_MESSAGE: 'UPDATE_MESSAGE',
+  COMPLETE_STREAMING_MESSAGE: 'COMPLETE_STREAMING_MESSAGE',
   UPDATE_STREAMING_MESSAGE: 'UPDATE_STREAMING_MESSAGE',
   CLEAR_STREAMING_MESSAGE: 'CLEAR_STREAMING_MESSAGE',
   SET_LOADING: 'SET_LOADING',
@@ -80,6 +81,18 @@ const chatReducer = (state, action) => {
             ? { ...msg, ...action.payload }
             : msg
         ),
+      };
+
+    case ActionTypes.COMPLETE_STREAMING_MESSAGE:
+      return {
+        ...state,
+        messages: state.messages.map(msg => 
+          msg.id === action.payload.id 
+            ? { ...msg, ...action.payload }
+            : msg
+        ),
+        streamingMessage: '',
+        isStreaming: false,
       };
 
     case ActionTypes.UPDATE_STREAMING_MESSAGE:
@@ -200,6 +213,10 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: ActionTypes.UPDATE_MESSAGE, payload: message });
   }, []);
 
+  const completeStreamingMessage = useCallback((message) => {
+    dispatch({ type: ActionTypes.COMPLETE_STREAMING_MESSAGE, payload: message });
+  }, []);
+
   const setLoading = useCallback((loading) => {
     dispatch({ type: ActionTypes.SET_LOADING, payload: loading });
   }, []);
@@ -238,6 +255,7 @@ export const ChatProvider = ({ children }) => {
     // Helper functions
     addMessage,
     updateMessage,
+    completeStreamingMessage,
     setLoading,
     setStreaming,
     setError,

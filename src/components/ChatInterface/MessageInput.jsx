@@ -1,9 +1,8 @@
 // src/components/ChatInterface/MessageInput.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const MessageInput = ({ onSendMessage, onStopGeneration, disabled, isLoading, isStreaming, placeholder }) => {
   const [message, setMessage] = useState('');
-  const textareaRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -14,7 +13,6 @@ const MessageInput = ({ onSendMessage, onStopGeneration, disabled, isLoading, is
       // Send message if not streaming
       onSendMessage(message.trim());
       setMessage('');
-      resetTextareaHeight();
     }
   };
 
@@ -27,39 +25,18 @@ const MessageInput = ({ onSendMessage, onStopGeneration, disabled, isLoading, is
 
   const handleInput = (e) => {
     setMessage(e.target.value);
-    adjustTextareaHeight();
   };
-
-  const adjustTextareaHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-    }
-  };
-
-  const resetTextareaHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-    }
-  };
-
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [message]);
 
   return (
     <form onSubmit={handleSubmit} className="message-input-container">
       <textarea
-        ref={textareaRef}
         value={message}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
         className="message-input"
-        rows={1}
+        rows={3}
       />
       <button
         type="submit"
