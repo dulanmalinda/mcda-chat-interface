@@ -613,6 +613,14 @@
   opacity: 0.6;
 }
 
+.send-button.stop-button {
+  background: #dc3545;
+}
+
+.send-button.stop-button:hover:not(:disabled) {
+  background: #c82333;
+}
+
 .send-button:focus {
   outline: 2px solid #007bff;
   outline-offset: 2px;

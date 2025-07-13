@@ -1,13 +1,17 @@
 // src/components/ChatInterface/MessageInput.jsx
 import React, { useState, useRef, useEffect } from 'react';
 
-const MessageInput = ({ onSendMessage, disabled, isLoading, placeholder }) => {
+const MessageInput = ({ onSendMessage, onStopGeneration, disabled, isLoading, isStreaming, placeholder }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (message.trim() && !disabled && !isLoading) {
+    if (isStreaming) {
+      // Stop generation if streaming
+      onStopGeneration();
+    } else if (message.trim() && !disabled && !isLoading) {
+      // Send message if not streaming
       onSendMessage(message.trim());
       setMessage('');
       resetTextareaHeight();
@@ -59,10 +63,14 @@ const MessageInput = ({ onSendMessage, disabled, isLoading, placeholder }) => {
       />
       <button
         type="submit"
-        disabled={!message.trim() || disabled || isLoading}
-        className="send-button"
+        disabled={isStreaming ? false : (!message.trim() || disabled || isLoading)}
+        className={`send-button ${isStreaming ? 'stop-button' : ''}`}
       >
-        {isLoading ? (
+        {isStreaming ? (
+          <>
+            ⏹️ Stop
+          </>
+        ) : isLoading ? (
           <>
             <div className="loading-spinner" />
             Sending...

@@ -227,21 +227,12 @@ const ChatContainer = () => {
 
           {/* Input Area */}
           <div className="input-container">
-            {isStreaming && (
-              <div className="streaming-controls">
-                <button
-                  className="stop-generation-btn"
-                  onClick={handleStopGeneration}
-                >
-                  ⏹️ Stop Generation
-                </button>
-              </div>
-            )}
-            
             <MessageInput
               onSendMessage={handleSendMessage}
+              onStopGeneration={handleStopGeneration}
               disabled={isLoading || connectionStatus !== 'connected'}
               isLoading={isLoading}
+              isStreaming={isStreaming}
               placeholder={
                 connectionStatus !== 'connected' 
                   ? 'Connect to Ollama to start chatting...'
