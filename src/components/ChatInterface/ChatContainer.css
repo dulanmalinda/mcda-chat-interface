@@ -1063,22 +1063,14 @@
   background: #c82333;
 }
 
-/* Dark mode scrollbar */
+/* Dark mode scrollbar - hidden */
 .messages-container::-webkit-scrollbar {
-  width: 8px;
+  display: none;
 }
 
-.messages-container::-webkit-scrollbar-track {
-  background: #1a1a1a;
-}
-
-.messages-container::-webkit-scrollbar-thumb {
-  background: #404040;
-  border-radius: 4px;
-}
-
-.messages-container::-webkit-scrollbar-thumb:hover {
-  background: #555;
+.messages-container {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 /* Responsive Design */
