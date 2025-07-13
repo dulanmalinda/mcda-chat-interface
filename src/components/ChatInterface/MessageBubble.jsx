@@ -1,5 +1,8 @@
 // src/components/ChatInterface/MessageBubble.jsx
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const MessageBubble = ({ message, currentModel }) => {
   const [showThinking, setShowThinking] = useState(false);
@@ -48,25 +51,91 @@ const MessageBubble = ({ message, currentModel }) => {
     ));
   };
 
-  const formatContent = (content) => {
-    // Simple markdown-like formatting
-    return content
-      .split('\n')
-      .map((line, index) => (
-        <div key={index}>
-          {line.startsWith('```') ? (
-            <pre className="code-block">
-              {line.replace(/```\w*/, '')}
-            </pre>
-          ) : line.startsWith('`') && line.endsWith('`') ? (
-            <code className="inline-code">
-              {line.slice(1, -1)}
-            </code>
-          ) : (
-            line
-          )}
-        </div>
-      ));
+  // Custom components for ReactMarkdown
+  const markdownComponents = {
+    code({ node, inline, className, children, ...props }) {
+      const match = /language-(\w+)/.exec(className || '');
+      const language = match ? match[1] : '';
+      
+      return !inline && language ? (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={language}
+          PreTag="div"
+          className="markdown-code-block"
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code className="markdown-inline-code" {...props}>
+          {children}
+        </code>
+      );
+    },
+    pre({ children }) {
+      return <div className="markdown-pre">{children}</div>;
+    },
+    h1({ children }) {
+      return <h1 className="markdown-h1">{children}</h1>;
+    },
+    h2({ children }) {
+      return <h2 className="markdown-h2">{children}</h2>;
+    },
+    h3({ children }) {
+      return <h3 className="markdown-h3">{children}</h3>;
+    },
+    h4({ children }) {
+      return <h4 className="markdown-h4">{children}</h4>;
+    },
+    h5({ children }) {
+      return <h5 className="markdown-h5">{children}</h5>;
+    },
+    h6({ children }) {
+      return <h6 className="markdown-h6">{children}</h6>;
+    },
+    ul({ children }) {
+      return <ul className="markdown-ul">{children}</ul>;
+    },
+    ol({ children }) {
+      return <ol className="markdown-ol">{children}</ol>;
+    },
+    li({ children }) {
+      return <li className="markdown-li">{children}</li>;
+    },
+    blockquote({ children }) {
+      return <blockquote className="markdown-blockquote">{children}</blockquote>;
+    },
+    p({ children }) {
+      return <p className="markdown-p">{children}</p>;
+    },
+    strong({ children }) {
+      return <strong className="markdown-strong">{children}</strong>;
+    },
+    em({ children }) {
+      return <em className="markdown-em">{children}</em>;
+    },
+    hr() {
+      return <hr className="markdown-hr" />;
+    },
+    table({ children }) {
+      return <table className="markdown-table">{children}</table>;
+    },
+    thead({ children }) {
+      return <thead className="markdown-thead">{children}</thead>;
+    },
+    tbody({ children }) {
+      return <tbody className="markdown-tbody">{children}</tbody>;
+    },
+    tr({ children }) {
+      return <tr className="markdown-tr">{children}</tr>;
+    },
+    th({ children }) {
+      return <th className="markdown-th">{children}</th>;
+    },
+    td({ children }) {
+      return <td className="markdown-td">{children}</td>;
+    },
   };
 
   return (
@@ -128,7 +197,9 @@ const MessageBubble = ({ message, currentModel }) => {
             <span>🧠 Thinking Process:</span>
           </div>
           <div className="thinking-text">
-            {formatContent(message.thinking)}
+            <ReactMarkdown components={markdownComponents}>
+              {message.thinking}
+            </ReactMarkdown>
           </div>
         </div>
       )}
@@ -158,11 +229,15 @@ const MessageBubble = ({ message, currentModel }) => {
       <div className="message-content">
         {isStreaming ? (
           <div className="streaming-content">
-            {formatContent(message.content)}
+            <ReactMarkdown components={markdownComponents}>
+              {message.content}
+            </ReactMarkdown>
             <span className="streaming-cursor">▊</span>
           </div>
         ) : (
-          formatContent(message.content)
+          <ReactMarkdown components={markdownComponents}>
+            {message.content}
+          </ReactMarkdown>
         )}
       </div>
 
