@@ -573,9 +573,8 @@
 }
 
 .message-input:focus {
-  outline: 2px solid #007bff;
-  outline-offset: 2px;
-  border-color: #007bff;
+  outline: none;
+  border-color: #555;
 }
 
 .message-input:disabled {

@@ -6,7 +6,7 @@ import TypingIndicator from './TypingIndicator';
 const MessageList = ({ messages, streamingMessage, isStreaming, currentModel }) => {
   return (
     <div className="message-list">
-      {messages.map((message) => (
+      {messages.filter(message => !(message.isStreaming && message.content === '')).map((message) => (
         <MessageBubble
           key={message.id}
           message={message}
