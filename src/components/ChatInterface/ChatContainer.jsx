@@ -172,13 +172,7 @@ const ChatContainer = () => {
           </div>
           
           <div className="header-right">
-            <button
-              className={`tools-toggle-btn ${showToolsPanel ? 'active' : ''}`}
-              onClick={() => setShowToolsPanel(!showToolsPanel)}
-              title={showToolsPanel ? 'Hide tools panel' : 'Show tools panel'}
-            >
-              🔧 Tools {mcpConnected && `(${availableToolsCount})`}
-            </button>
+            {/* Tools panel toggle button removed */}
             
             <ModelSelector
               models={models}
@@ -239,10 +233,7 @@ const ChatContainer = () => {
           </div>
         )}
 
-        {/* MCP Tools Panel */}
-        {showToolsPanel && (
-          <MCPToolsPanel onToolSelect={handleToolSelect} />
-        )}
+        {/* MCP Tools Panel - Removed */}
 
         {/* Main Chat Area */}
         <div className="chat-main">
