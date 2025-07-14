@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCDA MCP Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 MCDA MCP Integration Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Python MCP Server Test</h2>
+        <p>First, make sure your Python MCP server is running:</p>
+        <pre>cd D:\MCDA\mcp-python
+python main.py</pre>
+        <button onclick="testMCPServer()">Test MCP Server</button>
+        <div id="mcp-status" class="status warning">Not tested yet</div>
+        <p><strong>Expected:</strong> Server should be available at http://localhost:8000/sse</p>
+            <p><strong>Note:</strong> React app should connect to this SSE endpoint URL directly</p>
+    </div>
+
+    <div class="test-section">
+        <h2>2. React App Test</h2>
+        <p>Start your React app and check the integration:</p>
+        <pre>cd D:\MCDA\react-frontend\mcda-chat-interface
+npm run dev</pre>
+        <button onclick="testReactApp()">Check React App Status</button>
+        <div id="react-status" class="status warning">Not tested yet</div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Integration Checklist</h2>
+        <div id="checklist">
+            <div>✅ Python MCP server converted to HTTP transport</div>
+            <div>✅ use-mcp library added to React project</div>
+            <div>✅ useMCDAMcp hook created</div>
+            <div>✅ useEnhancedChat hook created</div>
+            <div>✅ MCPToolsPanel component created</div>
+            <div>✅ ChatContainer updated with MCP integration</div>
+            <div>✅ CSS styles added for MCP elements</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Expected Behavior</h2>
+        <ul>
+            <li><strong>Tools Panel:</strong> Should show connected MCP tools when server is running</li>
+            <li><strong>Tool Categories:</strong> Database, PROMETHEE, AHP tools should be visible</li>
+            <li><strong>Chat Integration:</strong> Qwen3 should be able to call MCDA tools automatically</li>
+            <li><strong>Tool Execution:</strong> Tool calls should show in chat with results</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Sample Prompts to Try</h2>
+        <div style="background: #e9ecef; padding: 15px; border-radius: 4px;">
+            <h4>Database Tools:</h4>
+            <p>"What process data is available in the database?"</p>
+            
+            <h4>PROMETHEE Analysis:</h4>
+            <p>"Run PROMETHEE I analysis on three alternatives: Electric Car, Hybrid Car, and Gas Car. Use criteria: Cost (weight 0.4), Environmental Impact (weight 0.3), and Performance (weight 0.3). Evaluation matrix: Electric [20000, 95, 85], Hybrid [25000, 80, 90], Gas [18000, 30, 95]."</p>
+            
+            <h4>AHP Analysis:</h4>
+            <p>"Perform AHP analysis to help me choose between three investment options."</p>
+        </div>
+    </div>
+
+    <script>
+        async function testMCPServer() {
+            const status = document.getElementById('mcp-status');
+            status.textContent = 'Testing...';
+            status.className = 'status warning';
+            
+            try {
+                // Test SSE endpoint connectivity
+                const response = await fetch('http://localhost:8000/sse');
+                if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
+                    status.textContent = '✅ MCP Server SSE endpoint is running!';
+                    status.className = 'status success';
+                } else if (response.status === 200) {
+                    status.textContent = '⚠️ Server responding but not serving SSE. Check transport configuration.';
+                    status.className = 'status warning';
+                } else {
+                    status.textContent = `⚠️ MCP Server responded with status: ${response.status}`;
+                    status.className = 'status warning';
+                }
+            } catch (error) {
+                status.textContent = '❌ Cannot connect to MCP server. Make sure it\'s running with: python main.py';
+                status.className = 'status error';
+            }
+        }
+
+        async function testReactApp() {
+            const status = document.getElementById('react-status');
+            status.textContent = 'Testing...';
+            status.className = 'status warning';
+            
+            try {
+                const response = await fetch('http://localhost:5173');
+                if (response.ok) {
+                    status.textContent = '✅ React app is running! Open http://localhost:5173 to test';
+                    status.className = 'status success';
+                } else {
+                    status.textContent = `⚠️ React app responded with status: ${response.status}`;
+                    status.className = 'status warning';
+                }
+            } catch (error) {
+                status.textContent = '❌ Cannot connect to React app. Make sure it\'s running with: npm run dev';
+                status.className = 'status error';
+            }
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            setTimeout(testMCPServer, 1000);
+            setTimeout(testReactApp, 2000);
+        };
+    </script>
+</body>
+</html>

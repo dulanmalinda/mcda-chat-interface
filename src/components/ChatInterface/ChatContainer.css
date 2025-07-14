@@ -1,4 +1,5 @@
 /* src/components/ChatInterface/ChatContainer.css */
+@import './MCPIntegration.css';
 
 .chat-container {
   display: flex;

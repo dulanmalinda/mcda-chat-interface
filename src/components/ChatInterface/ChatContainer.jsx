@@ -1,12 +1,13 @@
 // src/components/ChatInterface/ChatContainer.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat, ActionTypes } from '../../context/ChatContext.jsx';
-import { useStreamingChat } from '../../hooks/useStreamingChat';
+import { useEnhancedChat } from '../../hooks/useEnhancedChat';
 import { ollamaAPI } from '../../utils/ollamaApi';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ModelSelector from '../ModelSelector/ModelSelector';
 import ConnectionStatus from './ConnectionStatus';
+import MCPToolsPanel from '../MCPTools/MCPToolsPanel';
 import ErrorBoundary from '../ErrorBoundary/ErrorBoundary';
 import './ChatContainer.css';
 
@@ -20,10 +21,14 @@ const ChatContainer = () => {
     isStreaming,
     error,
     connectionStatus,
-  } = useStreamingChat();
+    mcpConnected,
+    mcpTools,
+    availableToolsCount,
+  } = useEnhancedChat();
 
   const [models, setModels] = useState([]);
   const [modelInfo, setModelInfo] = useState(null);
+  const [showToolsPanel, setShowToolsPanel] = useState(true);
   const messagesEndRef = useRef(null);
 
   // Auto-scroll to bottom
@@ -57,7 +62,7 @@ const ChatContainer = () => {
     }
   }, [connectionStatus, dispatch, setConnectionStatus]);
 
-  // Set default model when models are loaded (separate effect)
+  // Set default model when models are loaded
   useEffect(() => {
     if (models.length > 0) {
       // Check if current model exists in available models
@@ -83,7 +88,7 @@ const ChatContainer = () => {
         }
       }
     }
-  }, [models, dispatch]); // Remove state.currentModel from dependencies
+  }, [models, dispatch]);
 
   // Load model info when current model changes
   useEffect(() => {
@@ -128,6 +133,28 @@ const ChatContainer = () => {
     await retryConnection();
   };
 
+  const handleToolSelect = (tool) => {
+    // Auto-fill a sample prompt for the selected tool
+    const samplePrompts = {
+      'check_data_availability': 'What process data is available in the database?',
+      'promethee_1': 'Run PROMETHEE I analysis on alternatives A, B, C with criteria Cost and Quality',
+      'promethee_2': 'Run PROMETHEE II for complete ranking with net flows',
+      'ahp': 'Perform AHP analysis for decision making',
+    };
+    
+    const prompt = samplePrompts[tool.name] || `Use the ${tool.name} tool to help me with MCDA analysis`;
+    
+    // You could set this in an input field or just show it as a suggestion
+    console.log(`Suggested prompt for ${tool.name}: ${prompt}`);
+  };
+
+  const getConnectionSummary = () => {
+    const ollamaStatus = connectionStatus === 'connected' ? '✅' : '❌';
+    const mcpStatus = mcpConnected ? '✅' : '❌';
+    
+    return `${ollamaStatus} Ollama | ${mcpStatus} MCP Tools (${availableToolsCount})`;
+  };
+
   return (
     <ErrorBoundary>
       <div className="chat-container">
@@ -139,9 +166,20 @@ const ChatContainer = () => {
               status={connectionStatus}
               onRetry={handleRetryConnection}
             />
+            <div className="connection-summary">
+              {getConnectionSummary()}
+            </div>
           </div>
           
           <div className="header-right">
+            <button
+              className={`tools-toggle-btn ${showToolsPanel ? 'active' : ''}`}
+              onClick={() => setShowToolsPanel(!showToolsPanel)}
+              title={showToolsPanel ? 'Hide tools panel' : 'Show tools panel'}
+            >
+              🔧 Tools {mcpConnected && `(${availableToolsCount})`}
+            </button>
+            
             <ModelSelector
               models={models}
               currentModel={state.currentModel}
@@ -201,6 +239,11 @@ const ChatContainer = () => {
           </div>
         )}
 
+        {/* MCP Tools Panel */}
+        {showToolsPanel && (
+          <MCPToolsPanel onToolSelect={handleToolSelect} />
+        )}
+
         {/* Main Chat Area */}
         <div className="chat-main">
           {/* Messages */}
@@ -208,9 +251,26 @@ const ChatContainer = () => {
             {state.messages.length === 0 && connectionStatus === 'connected' && (
               <div className="welcome-message">
                 <div className="welcome-content">
-                  <h2>👋 Welcome to MCDA Chat</h2>
+                  <h2>👋 Welcome to MCDA Agent</h2>
                   <p>You're connected to <strong>{state.currentModel}</strong></p>
-                  <p>Start by typing a message below!</p>
+                  {mcpConnected ? (
+                    <div className="mcp-welcome">
+                      <p>🎉 <strong>{availableToolsCount} MCDA tools</strong> are ready to use!</p>
+                      <div className="tool-categories">
+                        <span>🗄️ Database</span>
+                        <span>📊 PROMETHEE</span>
+                        <span>🔢 AHP</span>
+                      </div>
+                      <p className="welcome-hint">
+                        Try: "What data is available?" or "Run PROMETHEE analysis on my alternatives"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mcp-disconnected">
+                      <p>⚠️ MCDA tools unavailable</p>
+                      <p>Start the Python MCP server to access analysis tools</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -236,6 +296,8 @@ const ChatContainer = () => {
               placeholder={
                 connectionStatus !== 'connected' 
                   ? 'Connect to Ollama to start chatting...'
+                  : mcpConnected
+                  ? `Ask me about MCDA analysis using ${state.currentModel}...`
                   : `Message ${state.currentModel}...`
               }
             />
