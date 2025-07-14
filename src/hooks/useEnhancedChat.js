@@ -84,27 +84,99 @@ export const useEnhancedChat = () => {
     setLoading(false);
   }, [setStreaming, setLoading]);
 
-  // Convert MCP tools to Ollama tool format
+  // Convert MCP tools to Ollama tool format with enhanced descriptions
   const formatToolsForOllama = useCallback(() => {
     if (!mcpConnected || !mcpTools || mcpTools.length === 0) {
       return [];
     }
 
-    return mcpTools.map(tool => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: {
-          type: 'object',
-          properties: tool.parameters,
-          required: Object.keys(tool.parameters).filter(
-            key => tool.parameters[key].required !== false
-          ),
-        },
-      },
-    }));
+    return mcpTools.map(tool => {
+      // Base tool definition
+      const baseTool = {
+        type: 'function',
+        function: {
+          name: tool.name,
+          parameters: {
+            type: 'object',
+            properties: tool.parameters,
+            required: Object.keys(tool.parameters).filter(
+              key => tool.parameters[key].required !== false
+            ),
+          },
+        }
+      };
+      
+      // Enhance description based on tool name
+      if (tool.name === 'get_process_data') {
+        baseTool.function.description = 
+          `Retrieves data for a particular process. IMPORTANT: You must provide the "process" parameter as a string value. ` +
+          `Example correct usage: {"process": "mulching"} NOT {"input_data": "mulching"} or just "mulching".`;
+      } 
+      else if (tool.name === 'check_data_availability') {
+        baseTool.function.description = 
+          `Checks the DB whether particular process data are available or not. ` +
+          `This tool doesn't require any parameters, so use empty arguments object {}.`;
+      } 
+      else if (tool.name.startsWith('promethee_')) {
+        baseTool.function.description = 
+          `${tool.description} IMPORTANT: The PrometheeInput model requires specific fields. ` +
+          `All fields must be provided with exact names: alternatives (string[]), criteria (string[]), ` +
+          `weights (number[]), evaluations (number[][]), and optionally maximize, preference_functions, thresholds, alpha, constraints.`;
+      } 
+      else if (tool.name === 'ahp') {
+        baseTool.function.description = 
+          `${tool.description} IMPORTANT: The AHPInput model requires specific fields. ` +
+          `All fields must be provided with exact names: alternatives (string[]), criteria (string[]), ` +
+          `criteria_matrix (number[][]), alternatives_matrices (number[][][]), and optionally check_consistency, consistency_threshold.`;
+      } 
+      else {
+        // Default description for other tools
+        baseTool.function.description = tool.description;
+      }
+      
+      return baseTool;
+    });
   }, [mcpConnected, mcpTools]);
+
+  // Helper function to get expected format for tools (what will be sent to server)
+  const getExpectedFormat = useCallback((toolName) => {
+    if (toolName === 'get_process_data') {
+      return { 
+        input_data: { 
+          process: "example_process_name" 
+        } 
+      };
+    } else if (toolName === 'check_data_availability') {
+      return {}; // No parameters needed
+    } else if (toolName.startsWith('promethee_')) {
+      return {
+        input_data: {
+          alternatives: ["Alternative A", "Alternative B"],
+          criteria: ["Criterion 1", "Criterion 2"],
+          weights: [0.6, 0.4],
+          evaluations: [[90, 80], [70, 95]],
+          // Optional parameters
+          maximize: [true, false],
+          preference_functions: ["usual", "linear"],
+          thresholds: [[0, 10, 20], [5, 15, 25]],
+          alpha: 0.1,
+          constraints: [true, false]
+        }
+      };
+    } else if (toolName === 'ahp') {
+      return {
+        input_data: {
+          alternatives: ["Alternative A", "Alternative B"],
+          criteria: ["Criterion 1", "Criterion 2"],
+          criteria_matrix: [[1, 3], [0.33, 1]],
+          alternatives_matrices: [[[1, 2], [0.5, 1]], [[1, 0.5], [2, 1]]],
+          check_consistency: true,
+          consistency_threshold: 0.1
+        }
+      };
+    }
+    return {}; // Default empty object
+  }, []);
 
   // Execute tool calls and return results
   const executeToolCalls = useCallback(async (toolCalls, assistantMessage) => {
@@ -114,9 +186,33 @@ export const useEnhancedChat = () => {
       const { name, arguments: args } = toolCall.function;
       
       console.log(`🔧 Executing tool: ${name}`, args);
+      console.log(`📄 Expected format for ${name}:`, getExpectedFormat(name));
+      
+      // Transform arguments based on what the MCP server expects
+      let processedArgs = args;
+      
+      if (name === 'get_process_data') {
+        // Simple database tool: wrap parameters in input_data object
+        processedArgs = { input_data: args };
+        console.log(`🔄 Transformed args for ${name}:`, processedArgs);
+      } else if (name.startsWith('promethee_')) {
+        // PROMETHEE algorithms: wrap parameters in input_data object
+        processedArgs = { input_data: args };
+        console.log(`🔄 Transformed args for ${name}:`, processedArgs);
+      } else if (name === 'ahp') {
+        // AHP algorithm: wrap parameters in input_data object
+        processedArgs = { input_data: args };
+        console.log(`🔄 Transformed args for ${name}:`, processedArgs);
+      } else if (name === 'check_data_availability') {
+        // This tool takes no parameters, keep as-is
+        processedArgs = args;
+      } else {
+        // For any other tools, use arguments as-is
+        processedArgs = args;
+      }
       
       try {
-        const result = await executeTool(name, args);
+        const result = await executeTool(name, processedArgs);
         
         results.push({
           toolCall,
@@ -131,7 +227,7 @@ export const useEnhancedChat = () => {
             ? `✅ Tool "${name}" executed successfully`
             : `❌ Tool "${name}" failed: ${result.error}`,
           toolName: name,
-          toolArgs: args,
+          toolArgs: processedArgs,  // Use processed args for consistency
           toolResult: result,
           timestamp: new Date().toISOString(),
         });
@@ -148,7 +244,7 @@ export const useEnhancedChat = () => {
           role: 'tool',
           content: `❌ Tool "${name}" failed: ${error.message}`,
           toolName: name,
-          toolArgs: args,
+          toolArgs: processedArgs,  // Use processed args for consistency
           isError: true,
           timestamp: new Date().toISOString(),
         });
@@ -168,7 +264,7 @@ export const useEnhancedChat = () => {
     await continueConversationAfterToolCalls(results, assistantMessage);
     
     return results;
-  }, [executeTool, addMessage, updateMessage]);
+  }, [executeTool, addMessage, updateMessage, getExpectedFormat]);
   
   // Continue conversation after tool calls by sending tool results back to LLM
   const continueConversationAfterToolCalls = useCallback(async (toolResults, assistantMessage) => {
