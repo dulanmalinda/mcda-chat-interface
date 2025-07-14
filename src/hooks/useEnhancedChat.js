@@ -107,7 +107,7 @@ export const useEnhancedChat = () => {
   }, [mcpConnected, mcpTools]);
 
   // Execute tool calls and return results
-  const executeToolCalls = useCallback(async (toolCalls, assistantMessageId) => {
+  const executeToolCalls = useCallback(async (toolCalls, assistantMessage) => {
     const results = [];
     
     for (const toolCall of toolCalls) {
@@ -157,7 +157,7 @@ export const useEnhancedChat = () => {
     
     // Update the assistant message with tool results
     updateMessage({
-      id: assistantMessageId,
+      id: assistantMessage.id,
       toolResults: results,
       hasToolResults: true,
     });
@@ -165,28 +165,58 @@ export const useEnhancedChat = () => {
     console.log('✅ Tool execution completed');
     
     // Continue the conversation with tool results
-    await continueConversationAfterToolCalls(results, assistantMessageId);
+    await continueConversationAfterToolCalls(results, assistantMessage);
     
     return results;
   }, [executeTool, addMessage, updateMessage]);
   
   // Continue conversation after tool calls by sending tool results back to LLM
-  const continueConversationAfterToolCalls = useCallback(async (toolResults, previousAssistantMessageId) => {
+  const continueConversationAfterToolCalls = useCallback(async (toolResults, assistantMessage) => {
     try {
       setLoading(true);
       
       // Prepare messages for the API, including all previous messages and tool results
       const currentMessages = [...state.messages];
       
-      // Find index of the last assistant message that made tool calls
-      const assistantMessageIndex = currentMessages.findIndex(msg => msg.id === previousAssistantMessageId);
-      if (assistantMessageIndex === -1) {
-        console.error('Could not find assistant message that made tool calls');
-        return;
-      }
+      // Find all messages up to and including the assistant message that initiated the tool call
+      // This ensures we have the complete conversation context
+      let messagesForLLM = [];
       
-      // Get all messages up to and including the assistant message
-      const messagesForLLM = currentMessages.slice(0, assistantMessageIndex + 1);
+      // If we have the assistant message, use it and all previous messages
+      if (assistantMessage) {
+        // Find the message in the current state (it should be there)
+        const assistantMessageIndex = currentMessages.findIndex(msg => msg.id === assistantMessage.id);
+        
+        if (assistantMessageIndex !== -1) {
+          // Use all messages up to and including the assistant message
+          messagesForLLM = currentMessages.slice(0, assistantMessageIndex + 1);
+        } else {
+          // Fallback: Use all messages and add the assistant message
+          console.warn('Assistant message not found in state, using all messages');
+          messagesForLLM = [...currentMessages];
+          
+          // If the assistant message isn't in state yet, add it manually to ensure context
+          if (!messagesForLLM.some(msg => msg.id === assistantMessage.id)) {
+            messagesForLLM.push(assistantMessage);
+          }
+        }
+      } else {
+        // If we don't have the assistant message, use all current messages
+        console.warn('No assistant message provided, using all messages');
+        messagesForLLM = [...currentMessages];
+        
+        // Clear loading state to prevent UI from being stuck
+        if (toolResults.length > 0) {
+          addMessage({
+            role: 'assistant',
+            content: 'I received the tool results but couldn\'t continue the conversation properly. Please try again or start a new conversation.',
+            isError: true,
+          });
+          setLoading(false);
+          setStreaming(false);
+          return; // Exit early to prevent further processing
+        }
+      }
       
       // Add tool result messages
       toolResults.forEach(result => {
@@ -275,7 +305,7 @@ export const useEnhancedChat = () => {
           clearStreamingMessage();
           
           // Update the assistant message with final content
-          updateMessage({
+          const newAssistantMessage = {
             id: newAssistantMessageId,
             role: 'assistant',
             content: fullResponse,
@@ -292,18 +322,22 @@ export const useEnhancedChat = () => {
               eval_count: chunk.eval_count,
               eval_duration: chunk.eval_duration,
             },
-          });
+          };
+          
+          // Update message in state
+          updateMessage(newAssistantMessage);
           
           // If there are new tool calls, execute them too (recursively continue the tool calling loop)
           if (newToolCalls.length > 0 && state.settings.enableTools) {
             console.log(`🚀 Executing ${newToolCalls.length} new tool calls...`);
-            await executeToolCalls(newToolCalls, newAssistantMessageId);
+            await executeToolCalls(newToolCalls, newAssistantMessage);
           }
           
           break;
         }
       }
       
+      setLoading(false);
       setStreaming(false);
       currentStreamRef.current = null;
       streamControllerRef.current = null;
@@ -439,7 +473,7 @@ export const useEnhancedChat = () => {
           clearStreamingMessage();
           
           // Update the assistant message with final content
-          updateMessage({
+          const assistantMessage = {
             id: assistantMessageId,
             role: 'assistant',
             content: fullResponse,
@@ -455,13 +489,16 @@ export const useEnhancedChat = () => {
               eval_count: chunk.eval_count,
               eval_duration: chunk.eval_duration,
             },
-          });
+          };
+          
+          // Update message in state
+          updateMessage(assistantMessage);
 
           // Execute tool calls if any
           if (toolCalls.length > 0 && enableTools) {
             console.log(`🚀 Executing ${toolCalls.length} tool calls...`);
             
-            await executeToolCalls(toolCalls, assistantMessageId);
+            await executeToolCalls(toolCalls, assistantMessage);
             
             console.log('✅ Tool execution complete and conversation continued');
           }

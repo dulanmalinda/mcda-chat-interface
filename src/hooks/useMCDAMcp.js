@@ -1,12 +1,30 @@
 // src/hooks/useMCDAMcp.js
 import { useMcp } from 'use-mcp/react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Custom hook for MCDA MCP server integration
  * Manages connection to Python MCP server and tool calling
  */
 export const useMCDAMcp = () => {
+  // MCP server URL (try different options if one fails)
+  const [mcpUrl, setMcpUrl] = useState('http://localhost:8001/sse');
+  
+  // Retry with different URLs if connection fails
+  const retryWithDifferentUrl = useCallback(() => {
+    // If current URL includes /sse, try without it
+    if (mcpUrl.includes('/sse')) {
+      const newUrl = mcpUrl.replace('/sse', '');
+      console.log(`🔄 Trying alternate MCP URL: ${newUrl}`);
+      setMcpUrl(newUrl);
+    } else {
+      // If not using /sse, add it
+      const newUrl = `${mcpUrl}/sse`;
+      console.log(`🔄 Trying alternate MCP URL: ${newUrl}`);
+      setMcpUrl(newUrl);
+    }
+  }, [mcpUrl]);
+  
   const {
     state,
     tools,
@@ -16,12 +34,29 @@ export const useMCDAMcp = () => {
     authenticate,
     clearStorage,
   } = useMcp({
-    url: 'http://localhost:8000/sse',  // Direct SSE endpoint URL - must include the /sse path
+    url: mcpUrl,
     clientName: 'MCDA Chat Interface',
     autoReconnect: true,
     transportType: 'sse',  // Explicitly use SSE transport for maximum compatibility
     debug: true,  // Enable debug logging for troubleshooting
   });
+  
+  // Log the connection URL being used
+  useEffect(() => {
+    console.log(`🔌 Connecting to MCP server at: ${mcpUrl}`);
+  }, [mcpUrl]);
+  
+  // Handle connection errors by trying different URLs
+  useEffect(() => {
+    if (state === 'failed' && mcpError) {
+      console.error('🚨 MCP Connection failed:', mcpError);
+      // Wait a moment before trying an alternate URL
+      const timer = setTimeout(() => {
+        retryWithDifferentUrl();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [state, mcpError, retryWithDifferentUrl]);
 
   // Format tools for better UI display
   const formatToolsForDisplay = useCallback(() => {
@@ -123,7 +158,11 @@ export const useMCDAMcp = () => {
     // Actions
     executeTool,
     isToolAvailable,
-    retry,
+    retry: () => {
+      retry();
+      // Also try a different URL if retry fails
+      setTimeout(retryWithDifferentUrl, 1000);
+    },
     authenticate,
     clearStorage,
     

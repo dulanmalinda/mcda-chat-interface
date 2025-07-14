@@ -55,8 +55,14 @@
 python main.py</pre>
         <button onclick="testMCPServer()">Test MCP Server</button>
         <div id="mcp-status" class="status warning">Not tested yet</div>
-        <p><strong>Expected:</strong> Server should be available at http://localhost:8000/sse</p>
-            <p><strong>Note:</strong> React app should connect to this SSE endpoint URL directly</p>
+        <p><strong>Expected:</strong> Server is available at one of these endpoints:</p>
+        <ul>
+            <li>http://localhost:8001/sse</li>
+            <li>http://localhost:8001</li>
+            <li>http://localhost:8000/sse</li>
+            <li>http://localhost:8000</li>
+        </ul>
+        <p><strong>Note:</strong> The React app will automatically try different endpoints if one fails</p>
     </div>
 
     <div class="test-section">
@@ -111,21 +117,36 @@ npm run dev</pre>
             status.textContent = 'Testing...';
             status.className = 'status warning';
             
-            try {
-                // Test SSE endpoint connectivity
-                const response = await fetch('http://localhost:8000/sse');
-                if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
-                    status.textContent = '✅ MCP Server SSE endpoint is running!';
-                    status.className = 'status success';
-                } else if (response.status === 200) {
-                    status.textContent = '⚠️ Server responding but not serving SSE. Check transport configuration.';
-                    status.className = 'status warning';
-                } else {
-                    status.textContent = `⚠️ MCP Server responded with status: ${response.status}`;
-                    status.className = 'status warning';
+            // Try multiple possible endpoints
+            const endpointsToTry = [
+                'http://localhost:8001/sse',
+                'http://localhost:8001',
+                'http://localhost:8000/sse',
+                'http://localhost:8000'
+            ];
+            
+            let foundEndpoint = false;
+            
+            for (const endpoint of endpointsToTry) {
+                try {
+                    // Test SSE endpoint connectivity
+                    const response = await fetch(endpoint);
+                    if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
+                        status.textContent = `✅ MCP Server found at: ${endpoint}`;
+                        status.className = 'status success';
+                        foundEndpoint = true;
+                        break;
+                    } else if (response.status === 200) {
+                        status.textContent = `⚠️ ${endpoint} is responding but not as SSE. Trying other endpoints...`;
+                        status.className = 'status warning';
+                    }
+                } catch (error) {
+                    console.log(`Could not connect to ${endpoint}`, error);
                 }
-            } catch (error) {
-                status.textContent = '❌ Cannot connect to MCP server. Make sure it\'s running with: python main.py';
+            }
+            
+            if (!foundEndpoint) {
+                status.textContent = '❌ Cannot connect to MCP server. Please check if the server is running.';
                 status.className = 'status error';
             }
         }
