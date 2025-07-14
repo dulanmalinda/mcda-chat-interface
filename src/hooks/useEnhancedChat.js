@@ -107,7 +107,7 @@ export const useEnhancedChat = () => {
   }, [mcpConnected, mcpTools]);
 
   // Execute tool calls and return results
-  const executeToolCalls = useCallback(async (toolCalls) => {
+  const executeToolCalls = useCallback(async (toolCalls, assistantMessageId) => {
     const results = [];
     
     for (const toolCall of toolCalls) {
@@ -155,8 +155,188 @@ export const useEnhancedChat = () => {
       }
     }
     
+    // Update the assistant message with tool results
+    updateMessage({
+      id: assistantMessageId,
+      toolResults: results,
+      hasToolResults: true,
+    });
+    
+    console.log('✅ Tool execution completed');
+    
+    // Continue the conversation with tool results
+    await continueConversationAfterToolCalls(results, assistantMessageId);
+    
     return results;
-  }, [executeTool, addMessage]);
+  }, [executeTool, addMessage, updateMessage]);
+  
+  // Continue conversation after tool calls by sending tool results back to LLM
+  const continueConversationAfterToolCalls = useCallback(async (toolResults, previousAssistantMessageId) => {
+    try {
+      setLoading(true);
+      
+      // Prepare messages for the API, including all previous messages and tool results
+      const currentMessages = [...state.messages];
+      
+      // Find index of the last assistant message that made tool calls
+      const assistantMessageIndex = currentMessages.findIndex(msg => msg.id === previousAssistantMessageId);
+      if (assistantMessageIndex === -1) {
+        console.error('Could not find assistant message that made tool calls');
+        return;
+      }
+      
+      // Get all messages up to and including the assistant message
+      const messagesForLLM = currentMessages.slice(0, assistantMessageIndex + 1);
+      
+      // Add tool result messages
+      toolResults.forEach(result => {
+        const toolName = result.toolCall.function.name;
+        const toolResult = result.success ? result.result : { error: result.result.error };
+        
+        messagesForLLM.push({
+          role: 'tool',
+          content: JSON.stringify(toolResult),
+          name: toolName,
+          tool_call_id: result.toolCall.id || `tool-${Date.now()}-${toolName}`,
+        });
+      });
+      
+      console.log('🔄 Continuing conversation with tool results:', messagesForLLM);
+      
+      // Create a new assistant message for the response
+      const newAssistantMessageId = `${Date.now()}-assistant-tool-response`;
+      addMessage({
+        id: newAssistantMessageId,
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+        isToolResponse: true,
+      });
+      
+      setLoading(false);
+      setStreaming(true);
+      
+      // Get available tools (in case the LLM wants to make further tool calls)
+      const availableTools = state.settings.enableTools && mcpConnected ? formatToolsForOllama() : [];
+      
+      // API options
+      const apiOptions = {
+        temperature: state.settings.temperature,
+        maxTokens: state.settings.maxTokens,
+        tools: availableTools,
+      };
+      
+      // Create AbortController
+      streamControllerRef.current = new AbortController();
+      
+      let fullResponse = '';
+      let newToolCalls = [];
+      let isThinking = false;
+      let thinkingContent = '';
+      
+      // Start streaming response to tool results
+      const stream = ollamaAPI.streamChat(messagesForLLM, state.currentModel, {
+        ...apiOptions,
+        signal: streamControllerRef.current.signal,
+      });
+      
+      currentStreamRef.current = stream;
+      
+      for await (const chunk of stream) {
+        if (!currentStreamRef.current) break;
+        
+        if (chunk.message && chunk.message.content) {
+          const content = chunk.message.content;
+          
+          // Handle thinking mode
+          if (content.includes('<think>')) {
+            isThinking = true;
+            thinkingContent += content;
+          } else if (content.includes('</think>')) {
+            isThinking = false;
+            thinkingContent += content;
+          } else if (isThinking) {
+            thinkingContent += content;
+          } else {
+            // Regular content
+            fullResponse += content;
+            updateStreamingMessage(content);
+          }
+        }
+        
+        // Handle new tool calls (in case the LLM wants to make additional tool calls)
+        if (chunk.message && chunk.message.tool_calls) {
+          newToolCalls = [...newToolCalls, ...chunk.message.tool_calls];
+          console.log('🔧 New tool calls detected:', chunk.message.tool_calls);
+        }
+        
+        // Check if response is complete
+        if (chunk.done) {
+          clearStreamingMessage();
+          
+          // Update the assistant message with final content
+          updateMessage({
+            id: newAssistantMessageId,
+            role: 'assistant',
+            content: fullResponse,
+            isStreaming: false,
+            toolCalls: newToolCalls.length > 0 ? newToolCalls : undefined,
+            thinking: thinkingContent || undefined,
+            isToolResponse: true,
+            metadata: {
+              model: chunk.model || state.currentModel,
+              total_duration: chunk.total_duration,
+              load_duration: chunk.load_duration,
+              prompt_eval_count: chunk.prompt_eval_count,
+              prompt_eval_duration: chunk.prompt_eval_duration,
+              eval_count: chunk.eval_count,
+              eval_duration: chunk.eval_duration,
+            },
+          });
+          
+          // If there are new tool calls, execute them too (recursively continue the tool calling loop)
+          if (newToolCalls.length > 0 && state.settings.enableTools) {
+            console.log(`🚀 Executing ${newToolCalls.length} new tool calls...`);
+            await executeToolCalls(newToolCalls, newAssistantMessageId);
+          }
+          
+          break;
+        }
+      }
+      
+      setStreaming(false);
+      currentStreamRef.current = null;
+      streamControllerRef.current = null;
+    } catch (error) {
+      setStreaming(false);
+      setLoading(false);
+      clearStreamingMessage();
+      
+      if (error.name === 'AbortError') {
+        return;
+      }
+      
+      console.error('Error continuing conversation after tool calls:', error);
+      
+      addMessage({
+        role: 'assistant',
+        content: `Error processing tool results: ${error.message}`,
+        isError: true,
+      });
+    }
+  }, [
+    state.messages,
+    state.currentModel,
+    state.settings,
+    mcpConnected,
+    addMessage,
+    updateMessage,
+    setLoading,
+    setStreaming,
+    clearStreamingMessage,
+    updateStreamingMessage,
+    formatToolsForOllama,
+  ]);
 
   // Enhanced send message with MCP tool support
   const sendMessage = useCallback(async (content, options = {}) => {
@@ -281,16 +461,9 @@ export const useEnhancedChat = () => {
           if (toolCalls.length > 0 && enableTools) {
             console.log(`🚀 Executing ${toolCalls.length} tool calls...`);
             
-            const toolResults = await executeToolCalls(toolCalls);
+            await executeToolCalls(toolCalls, assistantMessageId);
             
-            // Add tool results to the assistant message
-            updateMessage({
-              id: assistantMessageId,
-              toolResults,
-              hasToolResults: true,
-            });
-            
-            console.log('✅ Tool execution completed');
+            console.log('✅ Tool execution complete and conversation continued');
           }
 
           break;

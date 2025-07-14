@@ -12,6 +12,8 @@ const MessageBubble = ({ message, currentModel }) => {
   const isUser = message.role === 'user';
   const isError = message.isError;
   const isStreaming = message.isStreaming;
+  const isTool = message.role === 'tool';
+  const isToolResponse = message.isToolResponse;
 
   const handleCopy = async () => {
     try {
@@ -139,14 +141,14 @@ const MessageBubble = ({ message, currentModel }) => {
   };
 
   return (
-    <div className={`message-bubble ${isUser ? 'user' : 'assistant'} ${isError ? 'error' : ''} ${isStreaming ? 'streaming' : ''}`}>
+    <div className={`message-bubble ${isUser ? 'user' : 'assistant'} ${isError ? 'error' : ''} ${isStreaming ? 'streaming' : ''} ${isTool ? 'tool' : ''} ${isToolResponse ? 'tool-response' : ''}`}>
       <div className="message-header">
         <div className="message-role">
           <span className="role-icon">
-            {isUser ? '👤' : (isError ? '❌' : '🤖')}
+            {isUser ? '👤' : isTool ? '🔧' : isError ? '❌' : '🤖'}
           </span>
           <span className="role-name">
-            {isUser ? 'You' : (isError ? 'Error' : currentModel)}
+            {isUser ? 'You' : isTool ? `Tool: ${message.toolName || 'Function'}` : isError ? 'Error' : isToolResponse ? `${currentModel} (response)` : currentModel}
           </span>
         </div>
         

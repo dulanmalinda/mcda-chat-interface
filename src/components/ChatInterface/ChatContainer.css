@@ -235,6 +235,36 @@
   animation: fadeIn 0.3s ease-in;
 }
 
+/* Tool Messages */
+.message-bubble.tool .message-content {
+  background: #333444;
+  border-color: #444555;
+  color: #ccd;
+}
+
+.message-bubble.tool-response .message-content {
+  background: #334455;
+  border-color: #445566;
+  color: #cce;
+  border-left: 3px solid #007bff;
+}
+
+.message-bubble.tool-response {
+  position: relative;
+}
+
+.message-bubble.tool-response::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 20px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #007bff;
+  border-right: 2px solid #007bff;
+  transform: rotate(45deg);
+}
+
 /* Markdown Styles */
 .markdown-h1, .markdown-h2, .markdown-h3, .markdown-h4, .markdown-h5, .markdown-h6 {
   margin: 1rem 0 0.5rem 0;
